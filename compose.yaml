@@ -1,0 +1,15 @@
+services:
+  api:
+    build:
+      context: .
+      target: dev
+    ports:
+      - "8080:8080"
+    env_file: .env
+    environment:
+      GOOGLE_APPLICATION_CREDENTIALS: /gcloud/adc.json
+    volumes:
+      # 핫 리로드
+      - ./src:/app/src
+      # 호스트의 gcloud ADC로 GCP에 인증 (키 파일을 새로 만들지 않음)
+      - ${HOME}/.config/gcloud/application_default_credentials.json:/gcloud/adc.json:ro

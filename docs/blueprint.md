@@ -131,7 +131,8 @@ gcp-task-reminder/
 │   └── workflows/
 │       └── deploy.yml          # main push 시 Cloud Run 자동 배포
 ├── src/
-│   ├── index.ts                # Express 앱 구성, 라우터·정적 파일 연결
+│   ├── index.ts                # 설정 로드, 서버 기동(listen), 종료 처리
+│   ├── app.ts                  # Express 앱 생성 함수 (라우터·정적 파일 연결, 테스트에서 직접 호출)
 │   ├── config.ts               # 환경 변수 로드·검증
 │   ├── auth/
 │   │   ├── google.ts           # Google ID 토큰 검증, 허용 이메일 확인
@@ -154,7 +155,8 @@ gcp-task-reminder/
 ├── .env.example                # 로컬 개발용 환경 변수 템플릿
 ├── .gitignore
 ├── package.json
-├── tsconfig.json
+├── tsconfig.json               # 타입 검사용 (테스트 포함)
+├── tsconfig.build.json         # 빌드용 (테스트 제외)
 └── README.md
 ```
 
@@ -450,7 +452,7 @@ Terraform으로 만들 수 없는 항목이다. Terraform apply 전에 끝내야
 * 자동 테스트는 **실제 외부 API를 호출하지 않는다.** Cloud Tasks 클라이언트, 텔레그램 발송, Google 토큰 검증은 mock으로 대체한다. 실제 연동은 수동 시나리오에서 확인한다.
 * 라우터는 Express 앱을 만드는 함수와 서버 기동(`listen`)을 분리해, supertest로 앱을 직접 호출할 수 있게 한다.
 * 서비스(Cloud Tasks, 텔레그램, 토큰 검증)는 주입 가능한 형태로 만들어 테스트에서 교체할 수 있게 한다.
-* 테스트 파일은 대상 옆이나 `test/` 디렉터리에 `*.test.ts`로 둔다.
+* 테스트 파일은 대상 옆에 `*.test.ts`로 둔다. 빌드(`tsconfig.build.json`)에서는 제외된다.
 
 ### task별 자동 테스트 범위
 
