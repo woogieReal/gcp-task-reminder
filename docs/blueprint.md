@@ -101,7 +101,7 @@
 * **CI/CD:** GitHub Actions (`main` push → 이미지 빌드·푸시 → Cloud Run 배포), Workload Identity Federation으로 키 없이 GCP 인증
 * **Container Registry:** Artifact Registry
 * **Secret:** Secret Manager
-* **IaC:** Terraform >= 1.11, Google Provider >= 6.23 (write-only 속성 `secret_data_wo` 사용), state는 GCS backend
+* **IaC:** Terraform >= 1.11, Google Provider `~> 8.0`, Random Provider `~> 3.7` (write-only 속성 `secret_data_wo`, ephemeral `random_password` 사용), state는 GCS backend
 * **제약 사항:**
   * 환경 구분(Dev/Prod) 없이 단일 환경 구성.
   * 서비스 계정 키 파일(`*.json`)을 생성·사용하지 않는다. 로컬은 gcloud ADC, Cloud Run은 연결된 서비스 계정, GitHub Actions는 Workload Identity Federation을 사용한다.
@@ -202,7 +202,8 @@ Terraform으로 만들 수 없는 항목이다. Terraform apply 전에 끝내야
 모든 리소스는 `var.project_id`, `var.region`을 참조하며 값을 하드코딩하지 않는다.
 
 **`versions.tf`**
-* `required_version >= 1.11`, `hashicorp/google >= 6.23`, `hashicorp/random`(세션 키 생성용)
+* `required_version >= 1.11`, `hashicorp/google ~> 8.0`, `hashicorp/random ~> 3.7`(세션 키 생성용)
+  * 근거: `secret_data_wo`는 google 6.23.0에서 추가됐지만 8.0.0에서 `secret_data_wo_version`이 정수에서 **문자열** 타입으로 바뀌었다. 최신 메이저(8.x)에 맞춰 문자열로 사용한다. ephemeral `random_password`는 random 3.7.0에서 추가됐다.
 * backend: GCS, 버킷 `woogie-sandbox-gcp-tfstate`, prefix `gcp-task-reminder`. 버킷 자체는 Terraform이 관리하지 않는다.
 * `.terraform.lock.hcl`은 커밋해서 컴퓨터마다 같은 provider 버전을 쓰게 한다.
 
@@ -214,14 +215,14 @@ Terraform으로 만들 수 없는 항목이다. Terraform apply 전에 끝내야
 | `region` | `asia-northeast3` | |
 | `telegram_chat_id` | `8509618162` | |
 | `telegram_bot_token` | 없음 | sensitive + ephemeral. `TF_VAR_telegram_bot_token` 환경 변수로만 주입 |
-| `telegram_bot_token_version` | `1` | 토큰 교체 시 +1 |
-| `session_secret_version` | `1` | 세션 키 교체 시 +1 (모든 세션이 로그아웃됨) |
+| `telegram_bot_token_version` | `"1"` (string) | 토큰 교체 시 +1 |
+| `session_secret_version` | `"1"` (string) | 세션 키 교체 시 +1 (모든 세션이 로그아웃됨) |
 | `google_oauth_client_id` | Phase 0에서 발급한 값 | 공개 값 |
 | `allowed_email` | `woogiereal@gmail.com` | |
 | `placeholder_image` | `us-docker.pkg.dev/cloudrun/container/hello` | 최초 서비스 생성용 |
 | `github_repository` | `woogieReal/gcp-task-reminder` | WIF 접근을 허용할 저장소 |
 
-**`apis.tf`** — 활성화할 API: `run`, `cloudtasks`, `artifactregistry`, `secretmanager`, `iam`, `iamcredentials`, `sts`. 삭제 시 비활성화하지 않는다. 다른 리소스는 관련 API에 의존성을 건다.
+**`apis.tf`** — 활성화할 API: `run`, `cloudtasks`, `artifactregistry`, `secretmanager`, `iam`, `iamcredentials`, `sts`, `cloudresourcemanager`(프로젝트 번호를 조회하는 `data.google_project`용). 삭제 시 비활성화하지 않는다. 다른 리소스는 관련 API에 의존성을 건다.
 
 **`registry.tf`** — Docker 형식 Artifact Registry 저장소 `reminder` (`var.region`). 이미지 경로: `asia-northeast3-docker.pkg.dev/woogie-sandbox-gcp/reminder/reminder-api`
 
