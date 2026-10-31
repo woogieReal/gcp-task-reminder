@@ -1,0 +1,60 @@
+# ==========================================
+# 1. OS & Editor Artifacts
+# ==========================================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ==========================================
+# 2. Terraform Artifacts & Local State
+# ==========================================
+# Terraform 로컬 캐시 디렉터리
+.terraform/
+# .terraform.lock.hcl은 provider 버전 고정을 위해 커밋한다
+
+# 로컬 상태 파일
+*.tfstate
+*.tfstate.*
+*.tfplan
+
+# 로컬 변수 파일 (민감한 설정/토큰 주입 방지)
+*.tfvars
+*.tfvars.json
+
+# 크래시 및 오버라이드 파일
+crash.log
+crash.*
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# ==========================================
+# 3. Node.js & Dependencies
+# ==========================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+dist/
+build/
+
+# ==========================================
+# 4. Secrets & Local Environments
+# ==========================================
+# 텔레그램 봇 토큰 및 Chat ID 보관용 로컬 env
+.env
+.env.local
+.env.*.local
+
+# GCP 인증 키 파일 유출 방지
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+*.pem
+*.key
