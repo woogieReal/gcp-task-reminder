@@ -3,8 +3,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { CLIENT_ID, makeTestApp, sessionCookie } from './test/helpers.js';
 
 describe('createApp', () => {
-  it('GET /healthz는 200을 반환한다', async () => {
-    const res = await request(makeTestApp().app).get('/healthz');
+  it('GET /health는 200을 반환한다', async () => {
+    const res = await request(makeTestApp().app).get('/health');
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ status: 'ok' });
   });

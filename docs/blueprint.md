@@ -69,7 +69,7 @@
 | `POST /auth/logout` | 브라우저 | 세션 쿠키 삭제 | - |
 | `/api/*` | 브라우저 | 세션 쿠키 검증 | `401` |
 | `POST /trigger` | Cloud Tasks | OIDC 토큰 검증 (audience = `SERVICE_URL`, 발급 SA = `reminder-tasks-invoker`) | `401` |
-| `GET /healthz` | 누구나 | 없음 | - |
+| `GET /health` | 누구나 | 없음 | - |
 
 **Google 로그인 규칙**
 * 프런트엔드는 Google Identity Services(GIS)의 로그인 버튼으로 ID 토큰을 받아 `POST /auth/google`로 전달한다. OAuth client secret이 필요 없는 ID 토큰 방식이다.
@@ -176,12 +176,18 @@ gcp-task-reminder/
 | 순서 | Task (`docs/{n}_{name}/`) | 포함하는 명세 | 핵심 완료 기준 | 구현 시 확인 항목 |
 |---|---|---|---|---|
 | 1 | `gcp-infra-terraform` | Phase 0, Phase 1 | `terraform fmt -check`·`validate` 통과, apply 후 `plan` 변경 없음, `SERVICE_URL` postcondition 통과, output 값 확인 | `secret_data_wo`(google provider)와 ephemeral `random_password`(random provider)를 지원하는 최소 버전 확인 후 `versions.tf`에 반영 |
-| 2 | `project-init` | 프로젝트 골격(`package.json`, `tsconfig.json`, 테스트 도구), `config.ts`, `/healthz`, Phase 4, Phase 5 | `typecheck`·`test` 통과, `docker compose up` 후 `/healthz` `200` | - |
+| 2 | `project-init` | 프로젝트 골격(`package.json`, `tsconfig.json`, 테스트 도구), `config.ts`, `/health`, Phase 4, Phase 5 | `typecheck`·`test` 통과, `docker compose up` 후 `/health` `200` | - |
 | 3 | `reminder-api` | Phase 2 중 예약 생성·조회·취소, `/trigger`, 텔레그램 발송 | 단위·HTTP 테스트 통과, 로컬에서 실제 큐에 생성·조회·삭제 성공, `/trigger` 호출로 텔레그램 수신 | `cloudtasks.tasks.fullView` 권한이 런타임 SA 역할에 포함되는지 확인. 없으면 필요한 역할을 Terraform(`iam.tf`)에 추가 |
 | 4 | `auth` | Phase 2 중 Google 로그인, 세션, `/trigger` OIDC 검증, CSRF, 보안 헤더 | 인증 관련 테스트 통과, 로컬 Google 로그인 성공, 미인증 요청 `401` | - |
 | 5 | `web-ui` | Phase 3 | 로컬 브라우저 시나리오 체크리스트 통과 | - |
 | 6 | `cicd-pipeline` | Phase 6, GitHub 저장소 설정 | `main` push 후 Actions 성공, 새 리비전 배포 확인 | - |
 | 7 | `deploy-verification` | 7장 5~7단계 | 운영 환경 E2E 성공 (보호 확인, 알림 수신, 취소) | - |
+
+**후속 작업 (task 1~7 완료 후 진행)**
+
+| 항목 | 내용 | 등록 배경 |
+|---|---|---|
+| Artifact Registry 이미지 정리 정책 | `reminder` 저장소에 최근 5개 이미지만 남기고 나머지는 자동 삭제하는 cleanup policy를 Terraform으로 추가 | 배포마다 커밋 SHA 태그 이미지가 쌓여 무료 저장 한도(0.5GB)를 넘을 수 있음 (task 6 진행 중 비용 검토) |
 
 **task 진행 규칙**
 * **순서 제약:** Terraform이 Cloud Run을 `allUsers`로 공개하므로, task 4(`auth`)가 끝나기 전에는 앱 이미지를 Cloud Run에 배포하지 않는다. 그래서 task 6(`cicd-pipeline`)은 반드시 task 4 이후에 진행한다. task 3의 인증 없는 `/api`는 로컬에서만 실행한다.
@@ -318,7 +324,7 @@ Terraform으로 만들 수 없는 항목이다. Terraform apply 전에 끝내야
 | `GET /api/reminders` | 세션 | - | `200` `[{ id, text, scheduleAt, attempts, lastError? }]` | 예약 시각 오름차순 |
 | `DELETE /api/reminders/:id` | 세션 | - | `204` | 이미 실행됐거나 없는 태스크는 `404` |
 | `POST /trigger` | OIDC | `{ text }` | `200` | 아래 응답 규칙 참고 |
-| `GET /healthz` | 없음 | - | `200` | |
+| `GET /health` | 없음 | - | `200` | Cloud Run이 `z`로 끝나는 일부 경로(`/healthz` 등)를 예약하므로 `/health` 사용 |
 
 **예약 생성 (`POST /api/reminders`)**
 * API는 절대 시각(`scheduleAt`)만 받는다. "10분 후" 같은 상대 시간은 프런트엔드가 절대 시각으로 변환해서 보낸다.
@@ -436,7 +442,7 @@ Terraform으로 만들 수 없는 항목이다. Terraform apply 전에 끝내야
 * 트리거: `main` push(앱 관련 경로가 바뀐 경우만: `src/`, `public/`, `test/`, `package*.json`, `tsconfig*.json`, `vitest.config.ts`, `Dockerfile`, `.dockerignore`, 워크플로 파일 자체), 수동 실행(`workflow_dispatch`)
 * 동시 실행 방지: 배포는 한 번에 하나만, 진행 중인 배포는 취소하지 않음
 * 권한: `contents: read`, `id-token: write`(WIF용 OIDC 토큰 발급)
-* 단계: 체크아웃 → Node 22 설정·의존성 설치 → `typecheck`·`test` 실행(실패 시 배포 중단) → `google-github-actions/auth`(WIF) → `setup-gcloud` → Artifact Registry용 Docker 인증 → 이미지 빌드·푸시(태그 = 커밋 SHA) → `gcloud run deploy`로 이미지만 교체 → 운영 URL `/healthz` 스모크 테스트
+* 단계: 체크아웃 → Node 22 설정·의존성 설치 → `typecheck`·`test` 실행(실패 시 배포 중단) → `google-github-actions/auth`(WIF) → `setup-gcloud` → Artifact Registry용 Docker 인증 → 이미지 빌드·푸시(태그 = 커밋 SHA) → `gcloud run deploy`로 이미지만 교체 → 운영 URL `/health` 스모크 테스트
 * 공개 범위·환경 변수는 Terraform이 소유하므로 워크플로에서 지정하지 않는다.
 
 **참고: `gcp-serverless-memobox`와의 차이**
@@ -473,7 +479,7 @@ Terraform으로 만들 수 없는 항목이다. Terraform apply 전에 끝내야
 
 | Task | 테스트 대상 | 주요 케이스 |
 |---|---|---|
-| 2 `project-init` | `config.ts`, `/healthz` | 필수 환경 변수 누락 시 기동 실패, `/healthz` `200` |
+| 2 `project-init` | `config.ts`, `/health` | 필수 환경 변수 누락 시 기동 실패, `/health` `200` |
 | 3 `reminder-api` | 예약 생성·조회·취소, `/trigger` | `text` 공백·4000자 초과 → `400`, `scheduleAt` 과거·30일 초과·형식 오류 → `400`, 태스크 ID 형식 위반 → `400`, 없는 태스크 취소 → `404`, 생성 시 태스크 구성(대상 URL, 예약 시각, OIDC 설정) 확인, 텔레그램 성공 → `200`, 텔레그램 실패 → `500`, 본문 오류 → `200` |
 | 4 `auth` | 로그인, 세션, OIDC, CSRF | 허용 이메일 → 세션 발급, 다른 이메일·`email_verified=false` → `403`, 세션 없음·위조·만료 → `401`, `Origin` 불일치 → `403`, OIDC 토큰 없음·audience 불일치·다른 SA → `401`, `SKIP_TRIGGER_AUTH`는 `NODE_ENV=production`에서 무시 |
 | 5 `web-ui` | 화면 로직 (`public/time.js`) | 빠른 선택·기본값(지금 + 5분) 시각(자정·월말·연말 경계), `datetime-local` 변환(존재하지 않는 날짜 거부), 등록 불가 사유(4000자·과거·30일 경계), 예약 시각·남은 시간 표시 형식. 화면 동작은 수동 시나리오로 검증 |

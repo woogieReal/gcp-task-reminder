@@ -50,7 +50,8 @@ export function createApp({ config, tasks, telegram, verifier, now = () => new D
   app.use(express.json({ limit: '16kb' }));
   app.use(express.static(PUBLIC_DIR));
 
-  app.get('/healthz', (_req, res) => {
+  // Cloud Run은 'z'로 끝나는 일부 경로(/healthz 등)를 예약해 앱까지 전달하지 않으므로 /health를 쓴다.
+  app.get('/health', (_req, res) => {
     res.status(200).json({ status: 'ok' });
   });
 
