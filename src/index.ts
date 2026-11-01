@@ -1,5 +1,7 @@
 import { createApp } from './app.js';
 import { ConfigError, loadConfig, type Config } from './config.js';
+import { createCloudTaskService } from './services/task.service.js';
+import { createTelegramService } from './services/telegram.service.js';
 
 let config: Config;
 try {
@@ -12,7 +14,18 @@ try {
   throw err;
 }
 
-const server = createApp().listen(config.port, () => {
+const app = createApp({
+  tasks: createCloudTaskService({
+    projectId: config.gcpProjectId,
+    location: config.gcpLocation,
+    queueName: config.gcpQueueName,
+    serviceUrl: config.serviceUrl,
+    invokerSaEmail: config.tasksInvokerSaEmail,
+  }),
+  telegram: createTelegramService({ botToken: config.telegramBotToken, chatId: config.telegramChatId }),
+});
+
+const server = app.listen(config.port, () => {
   console.log(`reminder-api listening on port ${config.port} (${config.nodeEnv})`);
 });
 

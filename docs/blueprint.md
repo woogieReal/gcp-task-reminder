@@ -181,7 +181,7 @@ gcp-task-reminder/
 **task 진행 규칙**
 * **순서 제약:** Terraform이 Cloud Run을 `allUsers`로 공개하므로, task 4(`auth`)가 끝나기 전에는 앱 이미지를 Cloud Run에 배포하지 않는다. 그래서 task 6(`cicd-pipeline`)은 반드시 task 4 이후에 진행한다. task 3의 인증 없는 `/api`는 로컬에서만 실행한다.
 * **커밋:** task가 끝날 때(`/work-log` 이후)마다 커밋해서, 다음 task의 `git diff`에 이전 변경이 섞이지 않게 한다.
-* **실행 주체:** `terraform apply`와 `git push`는 사용자가 직접 실행한다. 에이전트는 코드를 작성하고 `fmt`·`validate`·`plan` 같은 읽기 전용 검증까지만 수행한 뒤 실행을 요청한다.
+* **실행 주체:** `terraform apply`, `git commit`, `git push`는 사용자가 직접 실행한다. 에이전트는 코드를 작성하고 `fmt`·`validate`·`plan`, 빌드·테스트 같은 읽기 전용 검증까지만 수행한 뒤, 실행할 명령이나 커밋 메시지를 사용자에게 전달한다.
 * **수동 작업의 완료 기준:** 콘솔 작업(OAuth, GitHub 설정)은 결과물로 간접 확인한다. 예: Client ID가 `variables.tf`에 반영됨, Actions 실행 성공.
 
 ### Phase 0: 수동 사전 작업 (GCP 콘솔)
