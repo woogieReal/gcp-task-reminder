@@ -210,6 +210,27 @@ textarea {
   min-height: 88px;
 }
 
+/* iOS Safari의 날짜 입력은 고유 최소 폭이 있어 width: 100%를 무시하고 카드 밖으로 넘친다.
+   기본 모양을 끄고 최소 폭을 0으로 풀어 칸 안에 맞추고, 가운데 정렬된 값을 왼쪽으로 맞춘다. */
+input[type='datetime-local'] {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* -webkit-touch-callout은 iOS Safari만 지원하므로 iOS에만 적용된다 (데스크톱 Chrome의 달력 아이콘 유지). */
+@supports (-webkit-touch-callout: none) {
+  input[type='datetime-local'] {
+    -webkit-appearance: none;
+    appearance: none;
+    text-align: left;
+  }
+
+  input[type='datetime-local']::-webkit-date-and-time-value {
+    text-align: left;
+  }
+}
+
 textarea:focus,
 input:focus {
   outline: 2px solid var(--primary);
