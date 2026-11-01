@@ -22,9 +22,6 @@ export interface AppDeps {
 
 const PUBLIC_DIR = fileURLToPath(new URL('../public', import.meta.url));
 const GSI = 'https://accounts.google.com/gsi/';
-// GIS client가 버튼을 그리기 전 임시 버튼에 주입하는 <style>의 해시.
-// 막히면 임시 G 로고가 화면 전체 크기로 잠깐 보인다. Google이 스타일을 바꾸면 콘솔에 새 해시가 표시된다.
-const GSI_INLINE_STYLE_HASH = "'sha256-RU4sU0AaS8IBGZx8XrGt/pa9A5SLA3dQszGeqT5L3Kw='";
 
 export function createApp({ config, tasks, telegram, verifier, now = () => new Date() }: AppDeps) {
   const isDevelopment = config.nodeEnv === 'development';
@@ -37,7 +34,9 @@ export function createApp({ config, tasks, telegram, verifier, now = () => new D
       contentSecurityPolicy: {
         directives: {
           scriptSrc: ["'self'", `${GSI}client`],
-          styleSrc: ["'self'", `${GSI}style`, GSI_INLINE_STYLE_HASH],
+          // GIS는 버튼 폭 등에 따라 내용이 달라지는 인라인 <style>·style 속성을 주입하므로 해시로 고정할 수 없다.
+          // 사용자 입력은 모두 textContent로 렌더링해 마크업 주입이 불가능하고, 스크립트는 'unsafe-inline' 없이 막는다.
+          styleSrc: ["'self'", "'unsafe-inline'", `${GSI}style`],
           frameSrc: [GSI],
           connectSrc: ["'self'", GSI],
           // http://localhost에서는 https 업그레이드가 정적 파일 로딩을 깨뜨린다.

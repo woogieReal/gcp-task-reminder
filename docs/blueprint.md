@@ -147,8 +147,13 @@ gcp-task-reminder/
 │       └── telegram.service.ts # 텔레그램 메시지 발송
 ├── public/
 │   ├── index.html              # 로그인 화면 + 예약 화면
-│   ├── app.js
-│   └── style.css
+│   ├── app.js                  # 화면 동작 (API 호출, 렌더링)
+│   ├── time.js                 # 화면 로직 순수 함수 (시각 계산·검증·표시 형식)
+│   ├── style.css               # 모바일 우선 스타일, 다크 모드
+│   └── favicon.svg
+├── test/
+│   └── public/time.test.js     # 화면 로직 테스트 (public/은 정적 배포되므로 테스트를 분리)
+├── vitest.config.ts            # 테스트 시간대 고정 (TZ=Asia/Seoul)
 ├── Dockerfile                  # 멀티 스테이지 빌드 (dev / build / runtime)
 ├── .dockerignore
 ├── compose.yaml                # 로컬 개발 환경
@@ -298,6 +303,8 @@ Terraform으로 만들 수 없는 항목이다. Terraform apply 전에 끝내야
 * 시각은 API에서 항상 ISO 8601(UTC 오프셋 포함)로 주고받고, 화면 표시는 브라우저 로컬 시간대(Asia/Seoul)로 변환한다.
 * 로그에 봇 토큰, 세션 키, ID 토큰, 쿠키 값이 출력되지 않게 한다. 외부 API 에러는 상태 코드와 메시지만 기록한다.
 * 기본 보안 헤더를 적용한다 (Google 로그인 스크립트 도메인을 허용하는 CSP 포함).
+  * `script-src`는 `'self'`와 GIS 스크립트만 허용하고 인라인 스크립트는 막는다.
+  * `style-src`는 `'unsafe-inline'`을 허용한다. GIS가 버튼 폭 등에 따라 내용이 달라지는 인라인 스타일을 주입해 해시로 고정할 수 없기 때문이다. 사용자 입력은 모두 `textContent`로 렌더링해 마크업 주입 경로가 없으므로 위험이 낮다.
 
 **API 명세**
 
@@ -359,6 +366,7 @@ Terraform으로 만들 수 없는 항목이다. Terraform apply 전에 끝내야
    * 메시지 입력 (여러 줄, 글자 수 표시)
    * 빠른 선택 버튼: `10분 후`, `30분 후`, `1시간 후`, `3시간 후`, `내일 오전 9시`
    * 직접 지정: 날짜·시간 입력 (`datetime-local`, 분 단위)
+   * 알림 시각 기본값은 `지금 + 5분`(분 단위 내림). 사용자가 직접 고치거나 빠른 선택을 누르기 전까지는 시간이 지나면 자동으로 다시 계산해 과거 시각이 되지 않게 하고, 등록 성공 후 다시 기본값으로 돌아간다.
    * 빠른 선택 버튼을 누르면 직접 지정 칸이 해당 시각으로 채워져, 사용자는 항상 최종 예약 시각을 눈으로 확인하고 미세 조정할 수 있다.
    * 과거 시각이나 30일 초과는 등록 버튼을 비활성화하고 이유를 표시한다.
    * 등록 성공 시 폼을 비우고 목록을 갱신한다.
@@ -458,7 +466,8 @@ Terraform으로 만들 수 없는 항목이다. Terraform apply 전에 끝내야
 * 자동 테스트는 **실제 외부 API를 호출하지 않는다.** Cloud Tasks 클라이언트, 텔레그램 발송, Google 토큰 검증은 mock으로 대체한다. 실제 연동은 수동 시나리오에서 확인한다.
 * 라우터는 Express 앱을 만드는 함수와 서버 기동(`listen`)을 분리해, supertest로 앱을 직접 호출할 수 있게 한다.
 * 서비스(Cloud Tasks, 텔레그램, 토큰 검증)는 주입 가능한 형태로 만들어 테스트에서 교체할 수 있게 한다.
-* 테스트 파일은 대상 옆에 `*.test.ts`로 둔다. 빌드(`tsconfig.build.json`)에서는 제외된다.
+* 서버 코드의 테스트 파일은 대상 옆에 `*.test.ts`로 둔다. 빌드(`tsconfig.build.json`)에서는 제외된다.
+* `public/`은 그대로 정적 배포되므로, 화면 로직(`public/time.js`) 테스트는 `test/public/`에 둔다. 로컬 시간대를 쓰는 로직이므로 `vitest.config.ts`에서 `TZ=Asia/Seoul`로 고정한다.
 
 ### task별 자동 테스트 범위
 
@@ -467,7 +476,7 @@ Terraform으로 만들 수 없는 항목이다. Terraform apply 전에 끝내야
 | 2 `project-init` | `config.ts`, `/healthz` | 필수 환경 변수 누락 시 기동 실패, `/healthz` `200` |
 | 3 `reminder-api` | 예약 생성·조회·취소, `/trigger` | `text` 공백·4000자 초과 → `400`, `scheduleAt` 과거·30일 초과·형식 오류 → `400`, 태스크 ID 형식 위반 → `400`, 없는 태스크 취소 → `404`, 생성 시 태스크 구성(대상 URL, 예약 시각, OIDC 설정) 확인, 텔레그램 성공 → `200`, 텔레그램 실패 → `500`, 본문 오류 → `200` |
 | 4 `auth` | 로그인, 세션, OIDC, CSRF | 허용 이메일 → 세션 발급, 다른 이메일·`email_verified=false` → `403`, 세션 없음·위조·만료 → `401`, `Origin` 불일치 → `403`, OIDC 토큰 없음·audience 불일치·다른 SA → `401`, `SKIP_TRIGGER_AUTH`는 `NODE_ENV=production`에서 무시 |
-| 5 `web-ui` | (자동 테스트 없음) | 수동 시나리오로 검증 |
+| 5 `web-ui` | 화면 로직 (`public/time.js`) | 빠른 선택·기본값(지금 + 5분) 시각(자정·월말·연말 경계), `datetime-local` 변환(존재하지 않는 날짜 거부), 등록 불가 사유(4000자·과거·30일 경계), 예약 시각·남은 시간 표시 형식. 화면 동작은 수동 시나리오로 검증 |
 
 ### 수동 검증 시나리오
 * **task 1:** apply 후 `gcloud`로 큐, Cloud Run, 시크릿, SA 존재 확인. `terraform output`으로 값 확인. `terraform plan` 실행에도 `TF_VAR_telegram_bot_token`이 필요하다.

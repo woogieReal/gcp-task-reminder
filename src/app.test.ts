@@ -52,8 +52,11 @@ describe('보안 헤더', () => {
     const res = await request(makeTestApp().app).get('/');
     const csp = res.headers['content-security-policy'] as string;
     expect(csp).toContain("script-src 'self' https://accounts.google.com/gsi/client");
-    expect(csp).toContain("style-src 'self' https://accounts.google.com/gsi/style 'sha256-");
-    expect(csp).not.toContain("'unsafe-inline'");
+    expect(csp).toContain("style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style");
+    // 인라인 허용은 스타일에만 적용하고 스크립트는 막는다.
+    const scriptSrc = csp.split(';').find((d) => d.startsWith('script-src '));
+    expect(scriptSrc).toBe("script-src 'self' https://accounts.google.com/gsi/client");
+    expect(csp).toContain("script-src-attr 'none'");
     expect(csp).toContain('frame-src https://accounts.google.com/gsi/');
     expect(csp).toContain("connect-src 'self' https://accounts.google.com/gsi/");
     expect(csp).toContain('upgrade-insecure-requests');
