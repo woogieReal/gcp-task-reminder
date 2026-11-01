@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Task Reminder</title>
+    <script src="https://accounts.google.com/gsi/client" async></script>
+    <script src="/app.js" type="module"></script>
+  </head>
+  <body>
+    <main>
+      <h1>Task Reminder</h1>
+
+      <section id="login" hidden>
+        <div id="gsi-button"></div>
+        <p id="login-error" role="alert" hidden></p>
+      </section>
+
+      <section id="session" hidden>
+        <p>로그인: <strong id="email"></strong></p>
+        <button id="logout" type="button">로그아웃</button>
+      </section>
+    </main>
+  </body>
+</html>

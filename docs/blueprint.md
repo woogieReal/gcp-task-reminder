@@ -195,7 +195,7 @@ Terraform으로 만들 수 없는 항목이다. Terraform apply 전에 끝내야
    * 범위: `openid`, `email`, `profile` (민감하지 않은 범위라 Google 검수 불필요)
 3. **OAuth Client** (Google Auth Platform → 클라이언트):
    * 유형: 웹 애플리케이션
-   * 승인된 JavaScript 원본: `https://reminder-api-371125433847.asia-northeast3.run.app`, `http://localhost:8080`
+   * 승인된 JavaScript 원본: `https://reminder-api-371125433847.asia-northeast3.run.app`, `http://localhost`, `http://localhost:8080` (GIS는 로컬 테스트 시 포트 없는 `http://localhost`도 함께 등록해야 한다)
    * 리디렉션 URI: 없음 (GIS ID 토큰 방식은 사용하지 않음)
    * 발급된 **Client ID**만 사용한다. Client ID는 브라우저에 노출되는 공개 값이라 `variables.tf` 기본값으로 커밋해도 된다. Client Secret은 사용하지 않는다.
 
@@ -342,6 +342,12 @@ Terraform으로 만들 수 없는 항목이다. Terraform apply 전에 끝내야
 ### Phase 3: 웹 페이지 구현 (`public/`)
 
 한 페이지 안에서 로그인 상태에 따라 화면을 전환한다. 스마트폰에서 주로 쓰므로 모바일 우선으로 만든다.
+
+**모바일 UI 원칙** (주 사용 환경은 스마트폰 브라우저)
+* 한 열 레이아웃, 화면 폭 360px 기준으로 설계하고 넓은 화면에서는 가운데 정렬된 최대 폭으로 표시한다.
+* 버튼·입력 등 터치 대상은 최소 44×44px, 엄지로 누르기 쉬운 간격을 둔다.
+* 입력 시 확대가 일어나지 않도록 입력 글꼴은 16px 이상으로 하고, 가로 스크롤이 생기지 않게 한다.
+* 자주 쓰는 동작(빠른 선택 버튼, 등록)은 한 손으로 닿는 위치에 크게 배치한다.
 
 **로그인 화면 (세션 없음)**
 * 서비스 이름과 "Google로 로그인" 버튼만 표시한다.

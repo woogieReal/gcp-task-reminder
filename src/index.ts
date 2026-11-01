@@ -1,4 +1,5 @@
 import { createApp } from './app.js';
+import { createGoogleIdTokenVerifier } from './auth/google.js';
 import { ConfigError, loadConfig, type Config } from './config.js';
 import { createCloudTaskService } from './services/task.service.js';
 import { createTelegramService } from './services/telegram.service.js';
@@ -15,6 +16,7 @@ try {
 }
 
 const app = createApp({
+  config,
   tasks: createCloudTaskService({
     projectId: config.gcpProjectId,
     location: config.gcpLocation,
@@ -23,6 +25,7 @@ const app = createApp({
     invokerSaEmail: config.tasksInvokerSaEmail,
   }),
   telegram: createTelegramService({ botToken: config.telegramBotToken, chatId: config.telegramChatId }),
+  verifier: createGoogleIdTokenVerifier(),
 });
 
 const server = app.listen(config.port, () => {

@@ -1,43 +1,69 @@
 import request from 'supertest';
 import { describe, expect, it, vi } from 'vitest';
-import { createApp } from './app.js';
-
-function makeApp() {
-  return createApp({
-    tasks: { create: vi.fn(), list: vi.fn().mockRejectedValue(new Error('db password=hunter2')), delete: vi.fn() },
-    telegram: { sendMessage: vi.fn() },
-  });
-}
+import { CLIENT_ID, makeTestApp, sessionCookie } from './test/helpers.js';
 
 describe('createApp', () => {
   it('GET /healthz는 200을 반환한다', async () => {
-    const res = await request(makeApp()).get('/healthz');
+    const res = await request(makeTestApp().app).get('/healthz');
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ status: 'ok' });
   });
 
+  it('GET /는 로그인 페이지를 반환한다', async () => {
+    const res = await request(makeTestApp().app).get('/');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('https://accounts.google.com/gsi/client');
+  });
+
+  it('GET /api/config는 인증 없이 Client ID를 반환한다', async () => {
+    const res = await request(makeTestApp().app).get('/api/config');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ googleClientId: CLIENT_ID });
+  });
+
   it('없는 경로는 404 JSON을 반환한다', async () => {
-    const res = await request(makeApp()).get('/no-such-path');
+    const res = await request(makeTestApp().app).get('/no-such-path');
     expect(res.status).toBe(404);
     expect(res.body).toEqual({ error: 'Not Found' });
   });
 
-  it('X-Powered-By 헤더를 노출하지 않는다', async () => {
-    const res = await request(makeApp()).get('/healthz');
-    expect(res.headers['x-powered-by']).toBeUndefined();
-  });
-
   it('잘못된 JSON 본문은 400을 반환한다', async () => {
-    const res = await request(makeApp()).post('/api/reminders').set('Content-Type', 'application/json').send('{bad');
+    const res = await request(makeTestApp().app)
+      .post('/auth/google')
+      .set('Origin', 'https://reminder-api.example.run.app')
+      .set('Content-Type', 'application/json')
+      .send('{bad');
     expect(res.status).toBe(400);
-    expect(res.body.error).toBeTypeOf('string');
   });
 
   it('처리되지 않은 에러는 내부 메시지 없이 500을 반환한다', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    const res = await request(makeApp()).get('/api/reminders');
+    const { app, tasks } = makeTestApp();
+    tasks.list.mockRejectedValue(new Error('db password=hunter2'));
+    const res = await request(app).get('/api/reminders').set('Cookie', sessionCookie());
     expect(res.status).toBe(500);
     expect(res.body).toEqual({ error: 'Internal Server Error' });
     expect(JSON.stringify(res.body)).not.toContain('hunter2');
+  });
+});
+
+describe('보안 헤더', () => {
+  it('GIS를 허용하는 CSP와 COOP·Referrer-Policy를 설정하고 X-Powered-By는 숨긴다', async () => {
+    const res = await request(makeTestApp().app).get('/');
+    const csp = res.headers['content-security-policy'] as string;
+    expect(csp).toContain("script-src 'self' https://accounts.google.com/gsi/client");
+    expect(csp).toContain("style-src 'self' https://accounts.google.com/gsi/style 'sha256-");
+    expect(csp).not.toContain("'unsafe-inline'");
+    expect(csp).toContain('frame-src https://accounts.google.com/gsi/');
+    expect(csp).toContain("connect-src 'self' https://accounts.google.com/gsi/");
+    expect(csp).toContain('upgrade-insecure-requests');
+    expect(res.headers['cross-origin-opener-policy']).toBe('same-origin-allow-popups');
+    expect(res.headers['referrer-policy']).toBe('strict-origin-when-cross-origin');
+    expect(res.headers['x-powered-by']).toBeUndefined();
+  });
+
+  it('development에서는 upgrade-insecure-requests를 빼서 http://localhost가 동작한다', async () => {
+    const res = await request(makeTestApp({ config: { nodeEnv: 'development' } }).app).get('/');
+    expect(res.headers['content-security-policy']).not.toContain('upgrade-insecure-requests');
   });
 });
