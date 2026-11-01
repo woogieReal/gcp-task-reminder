@@ -183,6 +183,8 @@ gcp-task-reminder/
 | 6 | `cicd-pipeline` | Phase 6, GitHub 저장소 설정 | `main` push 후 Actions 성공, 새 리비전 배포 확인 | - |
 | 7 | `deploy-verification` | 7장 5~7단계 | 운영 환경 E2E 성공 (보호 확인, 알림 수신, 취소) | - |
 
+**진행 상태:** task 1~7 완료 (2026-11-01). 각 task의 작업계획·검증결과·작업내역은 `docs/{n}_{name}/`에 있다.
+
 **후속 작업 (task 1~7 완료 후 진행)**
 
 | 항목 | 내용 | 등록 배경 |
