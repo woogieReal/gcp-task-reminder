@@ -240,6 +240,7 @@ Terraform으로 만들 수 없는 항목이다. Terraform apply 전에 끝내야
 **`apis.tf`** — 활성화할 API: `run`, `cloudtasks`, `artifactregistry`, `secretmanager`, `iam`, `iamcredentials`, `sts`, `cloudresourcemanager`(프로젝트 번호를 조회하는 `data.google_project`용). 삭제 시 비활성화하지 않는다. 다른 리소스는 관련 API에 의존성을 건다.
 
 **`registry.tf`** — Docker 형식 Artifact Registry 저장소 `reminder` (`var.region`). 이미지 경로: `asia-northeast3-docker.pkg.dev/woogie-sandbox-gcp/reminder/reminder-api`
+* 정리 정책: `keep-recent-5`(KEEP, 최근 5개 버전) + `delete-others`(DELETE, 태그 상태 무관), dry-run 끔. KEEP이 DELETE보다 우선하고, 정책은 백그라운드에서 약 하루 안에 적용된다.
 
 **`secrets.tf`** — 두 시크릿 모두 write-only 속성으로 값을 넣어 tfstate에 저장되지 않게 한다.
 
@@ -444,7 +445,7 @@ Terraform으로 만들 수 없는 항목이다. Terraform apply 전에 끝내야
 * 트리거: `main` push(앱 관련 경로가 바뀐 경우만: `src/`, `public/`, `test/`, `package*.json`, `tsconfig*.json`, `vitest.config.ts`, `Dockerfile`, `.dockerignore`, 워크플로 파일 자체), 수동 실행(`workflow_dispatch`)
 * 동시 실행 방지: 배포는 한 번에 하나만, 진행 중인 배포는 취소하지 않음
 * 권한: `contents: read`, `id-token: write`(WIF용 OIDC 토큰 발급)
-* 단계: 체크아웃 → Node 22 설정·의존성 설치 → `typecheck`·`test` 실행(실패 시 배포 중단) → `google-github-actions/auth`(WIF) → `setup-gcloud` → Artifact Registry용 Docker 인증 → 이미지 빌드·푸시(태그 = 커밋 SHA) → `gcloud run deploy`로 이미지만 교체 → 운영 URL `/health` 스모크 테스트
+* 단계: 체크아웃 → Node 22 설정·의존성 설치 → `typecheck`·`test` 실행(실패 시 배포 중단) → `google-github-actions/auth`(WIF) → `setup-gcloud` → Artifact Registry용 Docker 인증 → 이미지 빌드·푸시(태그 = 커밋 SHA, `--provenance=false --sbom=false`로 배포 1회당 버전 1개) → `gcloud run deploy`로 이미지만 교체 → 운영 URL `/health` 스모크 테스트
 * 공개 범위·환경 변수는 Terraform이 소유하므로 워크플로에서 지정하지 않는다.
 
 **참고: `gcp-serverless-memobox`와의 차이**
@@ -526,4 +527,5 @@ Terraform으로 만들 수 없는 항목이다. Terraform apply 전에 끝내야
 * **OAuth Testing 상태:** 테스트 사용자만 로그인할 수 있다. 의도한 잠금이므로 프로덕션으로 게시하지 않는다.
 * **다른 컴퓨터에서 작업:** `README.md`의 "다른 컴퓨터에서 이어서 작업하기"를 따른다.
 * **비상 수동 배포:** GitHub Actions를 쓸 수 없을 때는 로컬에서 `linux/amd64`로 이미지를 빌드해 Artifact Registry에 push한 뒤 `gcloud run deploy`로 이미지만 교체한다.
-* **비용:** Cloud Run(요청 기반, 최소 인스턴스 0), Cloud Tasks(월 100만 작업 무료), Artifact Registry(0.5GB 무료) 범위에서 사실상 무료다. 오래된 이미지는 주기적으로 정리한다.
+* **비용:** Cloud Run(요청 기반, 최소 인스턴스 0), Cloud Tasks(월 100만 작업 무료), Artifact Registry(0.5GB 무료) 범위에서 사실상 무료다. 이미지는 정리 정책으로 최근 5개만 유지된다.
+* **이미지 정리와 롤백:** 정리 정책이 오래된 이미지를 삭제하므로, 최근 5개보다 오래된 리비전으로는 롤백할 수 없다(리비전 기록은 남지만 이미지가 없음). 정리 결과는 `gcloud artifacts docker images list asia-northeast3-docker.pkg.dev/woogie-sandbox-gcp/reminder/reminder-api`로 확인하고, 삭제 이력을 로그로 보려면 Artifact Registry의 Data Access(데이터 쓰기) 감사 로그를 켜야 한다.

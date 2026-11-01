@@ -70,9 +70,11 @@ jobs:
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
 
+      # 빌드 출처 증명(provenance)·SBOM을 끄면 배포 1회당 Artifact Registry 버전이 1개만 생긴다.
+      # (켜 두면 이미지 인덱스·이미지·증명 3개가 생겨 "최근 N개 유지" 정리 정책과 개수가 맞지 않는다)
       - name: Build and push image
         run: |
-          docker build -t "${IMAGE}:${GITHUB_SHA}" .
+          docker build --provenance=false --sbom=false -t "${IMAGE}:${GITHUB_SHA}" .
           docker push "${IMAGE}:${GITHUB_SHA}"
 
       # 이미지만 교체한다. 공개 범위·환경 변수·서비스 계정은 Terraform이 소유하므로 지정하지 않는다.
