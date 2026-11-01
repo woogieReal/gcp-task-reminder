@@ -1,0 +1,88 @@
+name: Deploy to Cloud Run
+
+on:
+  push:
+    branches: [main]
+    # 앱에 영향을 주는 파일이 바뀐 경우에만 배포한다 (docs/, terraform/만 바뀐 push는 건너뜀).
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'test/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+      - 'tsconfig.build.json'
+      - 'vitest.config.ts'
+      - 'Dockerfile'
+      - '.dockerignore'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+
+# 배포는 한 번에 하나만 실행하고, 진행 중인 배포는 중간에 취소하지 않는다.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  PROJECT_ID: woogie-sandbox-gcp
+  REGION: asia-northeast3
+  SERVICE: reminder-api
+  IMAGE: asia-northeast3-docker.pkg.dev/woogie-sandbox-gcp/reminder/reminder-api
+  SERVICE_URL: https://reminder-api-371125433847.asia-northeast3.run.app
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: Production
+    permissions:
+      contents: read
+      id-token: write # Workload Identity Federation용 GitHub OIDC 토큰 발급
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      # 서비스 계정 키 없이 GitHub OIDC 토큰을 GCP 자격 증명으로 교환한다.
+      - name: Authenticate to GCP (Workload Identity Federation)
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+
+      - name: Set up gcloud CLI
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+
+      - name: Build and push image
+        run: |
+          docker build -t "${IMAGE}:${GITHUB_SHA}" .
+          docker push "${IMAGE}:${GITHUB_SHA}"
+
+      # 이미지만 교체한다. 공개 범위·환경 변수·서비스 계정은 Terraform이 소유하므로 지정하지 않는다.
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy "${SERVICE}" \
+            --image "${IMAGE}:${GITHUB_SHA}" \
+            --region "${REGION}" \
+            --project "${PROJECT_ID}" \
+            --quiet
+
+      - name: Smoke test
+        run: curl --fail --silent --show-error --retry 3 --retry-delay 5 "${SERVICE_URL}/healthz"

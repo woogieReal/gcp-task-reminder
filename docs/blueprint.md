@@ -433,10 +433,10 @@ Terraform으로 만들 수 없는 항목이다. Terraform apply 전에 끝내야
 * WIF를 쓰므로 GitHub에 저장할 비밀값이 없다.
 
 **`.github/workflows/deploy.yml`**
-* 트리거: `main` push(앱 관련 경로가 바뀐 경우만: `src/`, `public/`, `package*.json`, `tsconfig.json`, `Dockerfile`, `.dockerignore`, 워크플로 파일 자체), 수동 실행(`workflow_dispatch`)
+* 트리거: `main` push(앱 관련 경로가 바뀐 경우만: `src/`, `public/`, `test/`, `package*.json`, `tsconfig*.json`, `vitest.config.ts`, `Dockerfile`, `.dockerignore`, 워크플로 파일 자체), 수동 실행(`workflow_dispatch`)
 * 동시 실행 방지: 배포는 한 번에 하나만, 진행 중인 배포는 취소하지 않음
 * 권한: `contents: read`, `id-token: write`(WIF용 OIDC 토큰 발급)
-* 단계: 체크아웃 → Node 22 설정·의존성 설치 → `typecheck`·`test` 실행(실패 시 배포 중단) → `google-github-actions/auth`(WIF) → `setup-gcloud` → Artifact Registry용 Docker 인증 → 이미지 빌드·푸시(태그 = 커밋 SHA) → `gcloud run deploy`로 이미지만 교체
+* 단계: 체크아웃 → Node 22 설정·의존성 설치 → `typecheck`·`test` 실행(실패 시 배포 중단) → `google-github-actions/auth`(WIF) → `setup-gcloud` → Artifact Registry용 Docker 인증 → 이미지 빌드·푸시(태그 = 커밋 SHA) → `gcloud run deploy`로 이미지만 교체 → 운영 URL `/healthz` 스모크 테스트
 * 공개 범위·환경 변수는 Terraform이 소유하므로 워크플로에서 지정하지 않는다.
 
 **참고: `gcp-serverless-memobox`와의 차이**
